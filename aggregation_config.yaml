@@ -1,0 +1,25 @@
+defaults:
+  - agent: td3
+  - override hydra/launcher: submitit_local
+
+# unsupervised exploration
+expl_agent: proto
+# task settings
+task: walker_walk
+
+# dataset
+datasets_dir: /home/cz8792/research/exorl/datasets # make sure to update this if you change hydra run dir
+dataset_size: 1000000
+num_workers: 16
+save_path: /home/cz8792/.exorl/data/walker_walk.hdf5
+
+# misc
+seed: 1
+device: cuda
+use_tb: false
+
+
+
+#hydra:
+#  run:
+#    dir: ./output/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}
