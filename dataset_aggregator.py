@@ -80,11 +80,15 @@ class OfflineDatasetAggregator:
                 episode = relabel_episode(env, episode)
 
             for k in ['observation', 'action', 'reward']:
+                if k == 'observation':
+                    episode_v = episode[k][:-1]
+                else:
+                    episode_v = episode[k][1:]
                 if k + 's' not in dataset:
-                    dataset[k + 's'] = episode[k][:-1]
+                    dataset[k + 's'] = episode_v
                 else:
                     dataset[k + 's'] = np.concatenate([
-                        dataset[k + 's'], episode[k][:-1]], axis=0)
+                        dataset[k + 's'], episode_v], axis=0)
 
             if 'next_observations' not in dataset:
                 dataset['next_observations'] = episode['observation'][1:]
@@ -93,13 +97,13 @@ class OfflineDatasetAggregator:
                     dataset['next_observations'], episode['observation'][1:]], axis=0)
 
             if 'terminals' not in dataset:
-                terminals = 1.0 - episode['discount'][:-1]
+                terminals = 1.0 - episode['discount'][1:]
                 terminals[-1] = 1.0
 
                 dataset['masks'] = 1.0 - terminals
                 dataset['terminals'] = terminals
             else:
-                terminals = 1.0 - episode['discount'][:-1]
+                terminals = 1.0 - episode['discount'][1:]
                 terminals[-1] = 1.0
                 dataset['masks'] = np.concatenate([
                     dataset['masks'], 1.0 - terminals], axis=0)
