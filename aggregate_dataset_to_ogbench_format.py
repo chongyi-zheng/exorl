@@ -90,7 +90,12 @@ def main(cfg):
     dataset_dir = datasets_dir / domain / cfg.expl_agent / 'buffer'
     print(f'dataset dir: {dataset_dir}')
 
-    dataset = make_dataset(cfg.task, dataset_dir, cfg.dataset_size, cfg.num_workers)
+    dataset = make_dataset(
+        cfg.task, dataset_dir,
+        cfg.skip_size, cfg.dataset_size,
+        cfg.num_workers,
+        cfg.relabel_reward
+    )
 
     #
     # dataset = {

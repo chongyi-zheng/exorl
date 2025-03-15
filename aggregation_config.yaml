@@ -9,8 +9,10 @@ task: walker_walk
 
 # dataset
 datasets_dir: /home/cz8792/research/exorl/datasets # make sure to update this if you change hydra run dir
+skip_size: 0
 dataset_size: 1000000
 num_workers: 16
+relabel_reward: true
 save_path: /home/cz8792/.exorl/data/walker_walk.hdf5
 
 # misc

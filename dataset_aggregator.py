@@ -52,11 +52,13 @@ from replay_buffer import load_episode, relabel_episode
 
 
 class OfflineDatasetAggregator:
-    def __init__(self, task, dataset_dir, max_size, num_workers):
+    def __init__(self, task, dataset_dir, skip_size, max_size, num_workers, relabel_reward):
         self._task = task
         self._dataset_dir = dataset_dir
+        self._skip_size = skip_size
         self._max_size = max_size
         self._num_workers = max(1, num_workers)
+        self._relabel_reward = relabel_reward
 
     def _worker_init_fn(self):
         worker_id = mp.current_process()._identity[0]
@@ -79,7 +81,7 @@ class OfflineDatasetAggregator:
             if relabel:
                 episode = relabel_episode(env, episode)
 
-            for k in ['observation', 'action', 'reward']:
+            for k in ['observation', 'action'] + (['reward'] if relabel else []):
                 if k == 'observation':
                     episode_v = episode[k][:-1]
                 else:
@@ -112,7 +114,7 @@ class OfflineDatasetAggregator:
 
         return dataset
 
-    def load(self, relabel=True):
+    def load(self):
         # def worker_fn(eps_fn):
         #     episode = load_episode(eps_fn)
         #     if relabel:
@@ -147,17 +149,18 @@ class OfflineDatasetAggregator:
         #     dataset = dict(mp_dataset)
 
         all_eps_fns = sorted(self._dataset_dir.glob('*.npz'))
-        random.shuffle(all_eps_fns)
         size, eps_fns = 0, []
         for eps_fn in all_eps_fns:
             eps_idx, eps_len = [int(x) for x in eps_fn.stem.split('_')[1:]]
             size += eps_len
-            if size > self._max_size:
+            if size <= self._skip_size:
+                continue
+            elif size > (self._skip_size + self._max_size):
                 break
             eps_fns.append(eps_fn)
 
         split_size = int(np.ceil(len(eps_fns) / self._num_workers))
-        worker_args = [(eps_fns[i:i + split_size], relabel, self._task)
+        worker_args = [(eps_fns[i:i + split_size], self._relabel_reward, self._task)
                        for i in range(0, len(eps_fns), split_size)]
         with mp.Pool(processes=self._num_workers, initializer=self._worker_init_fn) as pool:
             results = pool.map(self._worker_fn, worker_args)
@@ -173,49 +176,6 @@ class OfflineDatasetAggregator:
 
         return dataset
 
-        # try:
-        #     worker_id = torch.utils.data.get_worker_info().id
-        # except:
-        #     worker_id = 0
-        # eps_fns = sorted(self._replay_dir.glob('*.npz'))
-        # for eps_fn in eps_fns:
-        #     if self._size > self._max_size:
-        #         break
-        #     eps_idx, eps_len = [int(x) for x in eps_fn.stem.split('_')[1:]]
-        #     if eps_idx % self._num_workers != worker_id:
-        #         continue
-        #     episode = load_episode(eps_fn)
-        #     if relabel:
-        #         episode = self._relabel_reward(episode)
-        #     self._episode_fns.append(eps_fn)
-        #     self._episodes[eps_fn] = episode
-        #     self._size += episode_len(episode)
-
-    # def _sample_episode(self):
-    #     if not self._loaded:
-    #         self._load()
-    #         self._loaded = True
-    #     eps_fn = random.choice(self._episode_fns)
-    #     return self._episodes[eps_fn]
-
-    # def _relabel_reward(self, episode):
-    #     return relabel_episode(self._env, episode)
-
-    # def _sample(self):
-    #     episode = self._sample_episode()
-    #     # add +1 for the first dummy transition
-    #     idx = np.random.randint(0, episode_len(episode)) + 1
-    #     obs = episode['observation'][idx - 1]
-    #     action = episode['action'][idx]
-    #     next_obs = episode['observation'][idx]
-    #     reward = episode['reward'][idx]
-    #     discount = episode['discount'][idx] * self._discount
-    #     return (obs, action, reward, discount, next_obs)
-
-    # def __iter__(self):
-    #     while True:
-    #         yield self._sample()
-
 
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
@@ -223,19 +183,15 @@ def _worker_init_fn(worker_id):
     random.seed(seed)
 
 
-def make_dataset(task, dataset_dir, max_size, num_workers):
+def make_dataset(task, dataset_dir, skip_size, max_size, num_workers, relabel_reward):
     # max_size_per_worker = max_size // max(1, num_workers)
 
-    aggregator = OfflineDatasetAggregator(task, dataset_dir, max_size, num_workers)
-    print('Loading and labeling data...')
+    aggregator = OfflineDatasetAggregator(task, dataset_dir, skip_size, max_size, num_workers, relabel_reward)
+    if relabel_reward:
+        print('Loading data...')
+    else:
+        print('Loading and labeling data...')
     dataset = aggregator.load()
     print('Dataset loaded.')
-
-    # loader = torch.utils.data.DataLoader(iterable,
-    #                                      batch_size=batch_size,
-    #                                      num_workers=num_workers,
-    #                                      pin_memory=True,
-    #                                      worker_init_fn=_worker_init_fn)
-
 
     return dataset
